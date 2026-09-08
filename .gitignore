@@ -1,0 +1,20 @@
+# Godot editor cache (每次打开会重新生成，必须忽略)
+.godot/
+.import/
+
+# Mono / C# 编译产物（如果项目用 Mono）
+.mono/
+mono_crash.*.json
+data_*/
+
+# 临时/备份文件
+*.translation~
+*.swp
+.DS_Store
+Thumbs.db
+
+# 本地构建产物（但保留 export_presets.cfg）
+build/
+# Godot 历史缓存目录
+.godot_old_cache/
+.godot_headless_check.log

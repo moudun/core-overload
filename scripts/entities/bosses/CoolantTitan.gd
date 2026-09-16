@@ -16,6 +16,7 @@ var _state := "idle"
 var _t := 0.0
 var _dir := Vector2.RIGHT
 var _flash := 0.0
+var _view: IsoShim
 var _sprite: Sprite2D
 var _line: Line2D
 
@@ -31,15 +32,19 @@ func _ready() -> void:
 	shape.shape = circ
 	add_child(shape)
 
+	_view = IsoShim.follow_owner(self, 0, 38.0 * 0.84)
 	_sprite = Sprite2D.new()
 	_sprite.texture = PixelArt.boss_tex(0)
-	add_child(_sprite)
+	_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_sprite.position = Vector2(0.0, -30.0)
+	_view.add_child(_sprite)
 
 	_line = Line2D.new()
 	_line.width = 6.0
 	_line.default_color = Color(1.0, 0.3, 0.25, 0.6)
+	_line.position = Vector2(0.0, -30.0)
 	_line.z_index = -1
-	add_child(_line)
+	_view.add_child(_line)
 
 	_t = 1.2
 	EventBus.boss_spawned.emit("COOLANT TITAN", hp)
@@ -72,7 +77,8 @@ func _physics_process(delta: float) -> void:
 			velocity = Vector2.ZERO
 			_line.clear_points()
 			_line.add_point(Vector2.ZERO)
-			_line.add_point(_dir * 900.0)
+			# 蓄力预警线也画在等距屏幕上（逻辑方向 → 屏幕方向）
+			_line.add_point(Iso.dir_to_screen(_dir) * 900.0 * Iso.SCALE)
 			if _t <= 0.0:
 				_line.clear_points()
 				_state = "dash"
@@ -137,7 +143,7 @@ func take_damage(v: int) -> void:
 
 func _die() -> void:
 	GameState.add_kill()
-	GameState.add_cells(EnemyDB.BOSSES[0]["cells"])
+	GameState.add_cells(EnemyDB.BOSSES[0]["cells"], true)
 	GameState.add_gold(EnemyDB.BOSSES[0]["gold"])
 	EventBus.enemy_killed.emit(global_position)
 	EventBus.boss_died.emit()

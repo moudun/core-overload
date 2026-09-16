@@ -13,6 +13,7 @@ var _state := "vanish"
 var _t := VANISH
 var _volley := 0
 var _flash := 0.0
+var _view: IsoShim
 var _sprite: Sprite2D
 
 
@@ -27,9 +28,12 @@ func _ready() -> void:
 	shape.shape = circ
 	add_child(shape)
 
+	_view = IsoShim.follow_owner(self, 0, 34.0 * 0.84)
 	_sprite = Sprite2D.new()
 	_sprite.texture = PixelArt.boss_tex(1)
-	add_child(_sprite)
+	_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_sprite.position = Vector2(0.0, -28.0)
+	_view.add_child(_sprite)
 	EventBus.boss_spawned.emit("GRAVEKEEPER", hp)
 
 
@@ -126,7 +130,7 @@ func take_damage(v: int) -> void:
 
 func _die() -> void:
 	GameState.add_kill()
-	GameState.add_cells(EnemyDB.BOSSES[1]["cells"])
+	GameState.add_cells(EnemyDB.BOSSES[1]["cells"], true)
 	GameState.add_gold(EnemyDB.BOSSES[1]["gold"])
 	EventBus.enemy_killed.emit(global_position)
 	EventBus.boss_died.emit()

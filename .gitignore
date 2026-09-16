@@ -18,3 +18,12 @@ build/
 # Godot 历史缓存目录
 .godot_old_cache/
 .godot_headless_check.log
+
+# 测试 / 截图 / 导出运行产物
+output/
+logs/
+
+# 测试运行期存档保护留下的临时文件
+.userdata_backup/
+*.smokebak
+*.smokerun

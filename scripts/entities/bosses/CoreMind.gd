@@ -18,6 +18,7 @@ var _charge_t := 6.0
 var _charging := false
 var _charge_dir := Vector2.RIGHT
 var _flash := 0.0
+var _view: IsoShim
 var _sprite: Sprite2D
 
 
@@ -32,9 +33,12 @@ func _ready() -> void:
 	shape.shape = circ
 	add_child(shape)
 
+	_view = IsoShim.follow_owner(self, 0, 46.0 * 0.84)
 	_sprite = Sprite2D.new()
 	_sprite.texture = PixelArt.boss_tex(2)
-	add_child(_sprite)
+	_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_sprite.position = Vector2(0.0, -34.0)
+	_view.add_child(_sprite)
 	EventBus.boss_spawned.emit("THE CORE MIND", hp)
 
 
@@ -156,7 +160,7 @@ func take_damage(v: int) -> void:
 
 func _die() -> void:
 	GameState.add_kill()
-	GameState.add_cells(EnemyDB.BOSSES[2]["cells"])
+	GameState.add_cells(EnemyDB.BOSSES[2]["cells"], true)
 	GameState.add_gold(EnemyDB.BOSSES[2]["gold"])
 	EventBus.enemy_killed.emit(global_position)
 	EventBus.boss_died.emit()

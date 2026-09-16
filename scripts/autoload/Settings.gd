@@ -7,6 +7,8 @@ const FILE_PATH := "user://settings.json"
 
 var sfx_volume_percent: int = 80
 var crt_enabled: bool = true
+## HUD 右侧「操作指南」栏是否展开（用户按 Tab 切换，持久化）
+var hud_guide_open: bool = true
 
 const VOL_DB_MIN := -40.0
 const VOL_DB_MAX := -6.0
@@ -31,6 +33,11 @@ func set_crt_enabled(v: bool) -> void:
 	_save()
 
 
+func set_hud_guide_open(v: bool) -> void:
+	hud_guide_open = v
+	_save()
+
+
 func _load() -> void:
 	if not FileAccess.file_exists(FILE_PATH):
 		return
@@ -43,6 +50,8 @@ func _load() -> void:
 			sfx_volume_percent = clampi(int(parsed["sfx_volume_percent"]), 0, 100)
 		if parsed.has("crt_enabled"):
 			crt_enabled = bool(parsed["crt_enabled"])
+		if parsed.has("hud_guide_open"):
+			hud_guide_open = bool(parsed["hud_guide_open"])
 
 
 func _save() -> void:
@@ -51,5 +60,6 @@ func _save() -> void:
 		return
 	f.store_string(JSON.stringify({
 		"sfx_volume_percent": sfx_volume_percent,
-		"crt_enabled": crt_enabled
+		"crt_enabled": crt_enabled,
+		"hud_guide_open": hud_guide_open
 	}))

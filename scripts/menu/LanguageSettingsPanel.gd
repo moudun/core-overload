@@ -23,7 +23,7 @@ signal closed
 func _ready() -> void:
 	_build_ui()
 	visible = false
-	Lang.language_changed.connect(_refresh_all_texts)
+	Lang.language_changed.connect(func(_c): _refresh_all_texts())
 
 
 func show_panel() -> void:

@@ -15,9 +15,11 @@ const COL_BORDER := Color(0.32, 0.55, 0.8, 0.9)
 
 var _box: VBoxContainer
 var _start_btn: Button
+var _collector_btn: Button
 var _lang_btn: Button
 var _quit_btn: Button
 var _settings_panel: Control
+var _collector_panel: Control
 
 
 func _ready() -> void:
@@ -28,6 +30,9 @@ func _ready() -> void:
 	var panel_script: GDScript = load("res://scripts/menu/LanguageSettingsPanel.gd")
 	_settings_panel = panel_script.new()
 	add_child(_settings_panel)
+	var collector_script: GDScript = load("res://scripts/menu/CollectorPanel.gd")
+	_collector_panel = collector_script.new()
+	add_child(_collector_panel)
 	modulate.a = 0.0
 	var tw := create_tween()
 	tw.tween_property(self, "modulate:a", 1.0, 0.35)
@@ -137,6 +142,12 @@ func _build_ui() -> void:
 	sep1.modulate = Color(1, 1, 1, 0.25)
 	_box.add_child(sep1)
 
+	# 收集者（局外永久升级）
+	_collector_btn = _menu_button()
+	_box.add_child(_collector_btn)
+	_collector_btn.pressed.connect(func() -> void: _collector_panel.show_panel())
+	_new_sub_helper(_collector_btn, "CollectorSubLabel")
+
 	# 语言和设置
 	_lang_btn = _menu_button()
 	_box.add_child(_lang_btn)
@@ -199,11 +210,15 @@ func _refresh_all_texts() -> void:
 	if hint:
 		hint.text = Lang.t("menu_hint")
 	_start_btn.text = Lang.t("menu_start")
+	_collector_btn.text = Lang.t("menu_collector")
 	_lang_btn.text = Lang.t("menu_language")
 	_quit_btn.text = Lang.t("menu_quit")
 	var ssub: Label = _start_btn.get_meta("sub_label")
 	if ssub:
 		ssub.text = Lang.t("menu_start_sub")
+	var csub: Label = _collector_btn.get_meta("sub_label")
+	if csub:
+		csub.text = Lang.f("menu_collector_sub", [MetaState.tech_points])
 	var lsub: Label = _lang_btn.get_meta("sub_label")
 	if lsub:
 		lsub.text = Lang.t("menu_language_sub")

@@ -1,12 +1,18 @@
 class_name PixelArt
 ## PixelArt —— 程序化生成像素风贴图（纯代码，无外部素材）。
-## 所有贴图统一在运行时生成，风格：粗像素、高对比、暗色描边。
+## V1.2 扩展：三区块色板、门、宝箱、金币、细胞、卷轴、Boss、武器掉落物。
 
-const PX := 1  # 像素粒度，1px 一个“像素点”（可整体放大获得更粗颗粒）
+const PX := 1
+
+# 三区块色板：[地板, 地板暗, 墙体, 氛围光]
+const BIOMES := [
+	[Color(0.055, 0.10, 0.125), Color(0.04, 0.075, 0.095), Color(0.10, 0.20, 0.24), Color(0.25, 0.84, 0.78)],
+	[Color(0.09, 0.07, 0.15), Color(0.065, 0.05, 0.11), Color(0.18, 0.14, 0.28), Color(0.65, 0.55, 0.98)],
+	[Color(0.125, 0.055, 0.055), Color(0.095, 0.04, 0.04), Color(0.28, 0.12, 0.11), Color(1.0, 0.42, 0.29)],
+]
 
 
 static func circle_tex(size: int, core: Color, glow: Color, rim: Color) -> ImageTexture:
-	## 圆点：中心亮 core -> 外圈 glow -> 1px 深色 rim。
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
 	var half := float(size) * 0.5
 	var r := half - 1.0
@@ -27,7 +33,6 @@ static func circle_tex(size: int, core: Color, glow: Color, rim: Color) -> Image
 
 
 static func square_tex(size: int, base: Color, edge: Color, corners: float = 1.0) -> ImageTexture:
-	## 圆角方块（尖角怪/卡牌通用）。
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
 	var r := float(size) * 0.5 - 1.0
 	for y in size:
@@ -47,7 +52,6 @@ static func square_tex(size: int, base: Color, edge: Color, corners: float = 1.0
 
 
 static func card_tex(size: int, base: Color) -> ImageTexture:
-	## 掉落卡牌：浅色描边 + 彩色芯 + 白色高光条。
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
 	for y in size:
 		for x in size:
@@ -64,7 +68,6 @@ static func card_tex(size: int, base: Color) -> ImageTexture:
 
 
 static func floor_tex(tile: int = 64, base: Color = Color(0.16, 0.17, 0.19)) -> ImageTexture:
-	## 石砖地板：每 tile 内做 4x4 砖缝 + 噪点。
 	var img := Image.create(tile, tile, false, Image.FORMAT_RGBA8)
 	var brick := tile / 4
 	for y in tile:
@@ -83,7 +86,6 @@ static func floor_tex(tile: int = 64, base: Color = Color(0.16, 0.17, 0.19)) -> 
 
 
 static func wall_tile() -> ImageTexture:
-	## 边界墙砖：暗金属边框 + 铆钉。
 	var s := 32
 	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
 	var brick := s / 4
@@ -102,19 +104,144 @@ static func wall_tile() -> ImageTexture:
 
 
 static func player_core_tex() -> ImageTexture:
-	## 玩家核心：大圆 + 内芯 + 呼吸感留白由动画控制。
 	return circle_tex(28, Color(0.55, 1.0, 0.9), Color(0.1, 0.7, 0.62), Color(0.02, 0.35, 0.3))
 
 
 static func enemy_tex(kind: int) -> ImageTexture:
 	match kind:
-		1:  # brute 重甲
+		1:
 			return square_tex(26, Color(0.72, 0.16, 0.12), Color(0.18, 0.03, 0.02), 4.0)
-		2:  # runner 快速小怪
+		2:
 			return circle_tex(18, Color(0.95, 0.5, 0.16), Color(0.6, 0.2, 0.04), Color(0.25, 0.08, 0.0))
-		_:  # normal 普通
+		3:
+			return square_tex(24, Color(0.35, 0.75, 0.35), Color(0.05, 0.22, 0.08), 6.0)
+		_:
 			return square_tex(22, Color(0.83, 0.20, 0.20), Color(0.2, 0.03, 0.03), 2.0)
 
 
 static func bullet_tex() -> ImageTexture:
 	return circle_tex(10, Color(1, 0.95, 0.6), Color(1, 0.6, 0.1), Color(0.5, 0.2, 0.0))
+
+
+# ---------------- V1.2 新增 ----------------
+
+static func biome_floor_tex(biome: int, w: int, h: int) -> ImageTexture:
+	## 按区块色板生成整块地板（32px 棋盘 + 缝线）。
+	var pal: Array = BIOMES[clampi(biome, 0, 2)]
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	var s := 32
+	var light_c: Color = pal[0]
+	var dark_c: Color = pal[1]
+	for gy in range(h / s + 1):
+		for gx in range(w / s + 1):
+			var col := light_c if (gx + gy) % 2 == 0 else dark_c
+			if (gx * 7 + gy * 13) % 9 == 0:
+				col = col.darkened(0.12)
+			img.fill_rect(Rect2i(gx * s, gy * s, s, s), col)
+	var seam := Color(0.03, 0.035, 0.04)
+	for y in range(0, h, s):
+		img.fill_rect(Rect2i(0, y, w, 2), seam)
+	for x in range(0, w, s):
+		img.fill_rect(Rect2i(x, 0, 2, h), seam)
+	return ImageTexture.create_from_image(img)
+
+
+static func wall_tex(biome: int) -> ImageTexture:
+	var pal: Array = BIOMES[clampi(biome, 0, 2)]
+	var s := 32
+	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
+	var base: Color = pal[2]
+	var brick := s / 4
+	for y in s:
+		for x in s:
+			var col := base
+			if (x % brick) < 1 or (y % brick) < 1:
+				col = base.darkened(0.45)
+			if x < 2 or y < 2 or x >= s - 2 or y >= s - 2:
+				col = base.lightened(0.28)
+			img.set_pixel(x, y, col)
+	return ImageTexture.create_from_image(img)
+
+
+static func pillar_tex(biome: int) -> ImageTexture:
+	var pal: Array = BIOMES[clampi(biome, 0, 2)]
+	var s := 48
+	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
+	var base: Color = pal[2].darkened(0.25)
+	var accent: Color = pal[3].darkened(0.35)
+	for y in s:
+		for x in s:
+			var col := base
+			if x < 3 or y < 3 or x >= s - 3 or y >= s - 3:
+				col = accent
+			if (x + y) % 8 == 0:
+				col = col.darkened(0.15)
+			img.set_pixel(x, y, col)
+	return ImageTexture.create_from_image(img)
+
+
+static func door_tex(locked: bool) -> ImageTexture:
+	var s := 40
+	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
+	var frame := Color(0.30, 0.33, 0.38)
+	var fill := Color(0.85, 0.15, 0.12) if locked else Color(0.25, 0.95, 0.45)
+	for y in s:
+		for x in s:
+			var col := frame
+			if x >= 4 and y >= 4 and x < s - 4 and y < s - 4:
+				var band := ((x + y) % 12) < 4
+				col = fill.lightened(0.25) if band else fill
+			if x < 2 or y < 2 or x >= s - 2 or y >= s - 2:
+				col = fill.lightened(0.5)
+			img.set_pixel(x, y, col)
+	return ImageTexture.create_from_image(img)
+
+
+static func chest_tex() -> ImageTexture:
+	var s := 34
+	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
+	for y in s:
+		for x in s:
+			var col := Color(0.36, 0.16, 0.52)
+			if x < 3 or y < 3 or x >= s - 3 or y >= s - 3:
+				col = Color(0.95, 0.78, 0.25)
+			if y > s / 2 - 2 and y < s / 2 + 2:
+				col = Color(0.95, 0.78, 0.25)
+			img.set_pixel(x, y, col)
+	return ImageTexture.create_from_image(img)
+
+
+static func coin_tex() -> ImageTexture:
+	return circle_tex(14, Color(1.0, 0.92, 0.35), Color(0.85, 0.62, 0.1), Color(0.45, 0.3, 0.02))
+
+
+static func cell_tex() -> ImageTexture:
+	var s := 16
+	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
+	var half := s * 0.5
+	for y in s:
+		for x in s:
+			var d := absf(x + 0.5 - half) + absf(y + 0.5 - half)
+			if d > half + 2.0:
+				continue
+			var col := Color(0.35, 1.0, 0.85) if d < half * 0.5 else Color(0.08, 0.55, 0.48)
+			img.set_pixel(x, y, col)
+	return ImageTexture.create_from_image(img)
+
+
+static func scroll_tex(color: Color) -> ImageTexture:
+	return circle_tex(26, color.lightened(0.35), color, color.darkened(0.5))
+
+
+static func weapon_drop_tex(color: Color) -> ImageTexture:
+	return square_tex(28, color, color.darkened(0.55), 5.0)
+
+
+static func boss_tex(kind: int) -> ImageTexture:
+	match kind:
+		1:
+			return circle_tex(84, Color(0.75, 0.35, 0.95), Color(0.32, 0.10, 0.45), Color(0.10, 0.03, 0.16))
+		2:
+			return circle_tex(108, Color(1.0, 0.45, 0.28), Color(0.55, 0.14, 0.06), Color(0.14, 0.03, 0.02))
+		_:
+			return circle_tex(64, Color(0.30, 0.85, 0.95), Color(0.06, 0.38, 0.48), Color(0.01, 0.14, 0.18))

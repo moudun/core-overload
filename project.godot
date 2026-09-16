@@ -18,9 +18,11 @@ config/icon="res://icon.svg"
 [autoload]
 
 EventBus="*res://scripts/autoload/EventBus.gd"
-GameState="*res://scripts/autoload/GameState.gd"
 Lang="*res://scripts/autoload/Lang.gd"
 Settings="*res://scripts/autoload/Settings.gd"
+MetaState="*res://scripts/autoload/MetaState.gd"
+GameState="*res://scripts/autoload/GameState.gd"
+RunDirector="*res://scripts/run/RunDirector.gd"
 
 [display]
 

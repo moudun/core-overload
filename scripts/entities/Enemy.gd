@@ -1,48 +1,46 @@
 extends CharacterBody2D
-## Enemy —— 入侵者（怪物）：自动追踪玩家核心，撞击造成核心伤害并自毁。
-## kind: 0 普通 / 1 重甲 / 2 快速。数值随波次轻微缩放。
+## Enemy —— V1.2 入侵者。
+## kind: 0 drone(追踪自爆) / 1 brute(慢速高伤) / 2 runner(高速) / 3 spitter(远程)
+## elite: 精英变体（体型更大、掉细胞）。数值由 EnemyDB 按区块缩放。
+## 碰撞：layer=2，mask=8（障碍）。
 
 class_name Enemy
 
-const BASE_STATS := {
-	0: {"hp": 2, "speed": 72.0, "dmg": 12, "radius": 10.0},
-	1: {"hp": 6, "speed": 46.0, "dmg": 24, "radius": 12.0},
-	2: {"hp": 1, "speed": 122.0, "dmg": 8, "radius": 8.0},
-}
-
 var kind := 0
+var elite := false
 var hp := 1
 var dmg := 10
-var speed := 60.0
 var radius := 10.0
+var ranged := false
+var fire_cd := 0.0
+var _fire_t := 0.0
+var _bullet_speed := 240.0
+var _keep_min := 260.0
+var _keep_max := 420.0
 var _flash := 0.0
 var _sprite: Sprite2D
 
 
-static func build_kind(wave: int) -> int:
-	var r := randf()
-	if wave >= 3 and r < 0.20:
-		return 2
-	if wave >= 2 and r < 0.42:
-		return 1
-	return 0
-
-
-func setup(k: int, wave: int) -> void:
+func setup(k: int, biome: int, is_elite: bool = false) -> void:
 	kind = k
-	var st: Dictionary = BASE_STATS[kind]
-	radius = float(st["radius"])
-	var scale_p := 1.0 + float(wave - 1) * 0.08
-	hp = maxi(1, int(round(float(st["hp"]) * scale_p)))
-	speed = float(st["speed"]) * (1.0 + float(wave - 1) * 0.035)
+	elite = is_elite
+	var st: Dictionary = EnemyDB.stats(k, biome, is_elite)
+	hp = int(st["hp"])
 	dmg = int(st["dmg"])
+	radius = float(st["radius"])
+	ranged = bool(st["ranged"])
+	fire_cd = float(st["fire_cd"])
+	_bullet_speed = float(st["bullet_speed"])
+	_keep_min = float(st["keep_min"])
+	_keep_max = float(st["keep_max"])
+	_fire_t = randf() * fire_cd if fire_cd > 0.0 else 0.0
 	_update_visual()
 
 
 func _ready() -> void:
 	add_to_group("enemies")
 	collision_layer = 2
-	collision_mask = 0
+	collision_mask = 8
 
 	var shape := CollisionShape2D.new()
 	var circ := CircleShape2D.new()
@@ -60,7 +58,10 @@ func _update_visual() -> void:
 		return
 	_sprite.texture = PixelArt.enemy_tex(kind)
 	var base_tex := 22.0
-	_sprite.scale = Vector2(radius * 2.0 / base_tex, radius * 2.0 / base_tex)
+	var s := radius * 2.0 / base_tex * (1.4 if elite else 1.0)
+	_sprite.scale = Vector2(s, s)
+	if elite:
+		_sprite.modulate = Color(1.0, 0.75, 1.0)
 
 
 func _physics_process(delta: float) -> void:
@@ -71,26 +72,52 @@ func _physics_process(delta: float) -> void:
 		return
 	var delta_v: Vector2 = target.global_position - global_position
 	var dist := delta_v.length()
-	if dist > 0.001:
-		velocity = delta_v / dist * speed
+
+	if ranged:
+		# 远程：保持距离并射击
+		if dist < _keep_min:
+			velocity = -delta_v.normalized() * speed_value() * 0.8
+		elif dist > _keep_max:
+			velocity = delta_v.normalized() * speed_value()
+		else:
+			velocity = Vector2.ZERO
+		_fire_t -= delta
+		if _fire_t <= 0.0 and fire_cd > 0.0:
+			_fire_t = fire_cd
+			_shoot(delta_v.normalized())
 	else:
-		velocity = Vector2.ZERO
+		velocity = delta_v.normalized() * speed_value() if dist > 0.001 else Vector2.ZERO
 	move_and_slide()
 
 	if _flash > 0.0:
 		_flash -= delta
 		_sprite.modulate = Color(3.0, 3.0, 3.0) if _flash > 0.0 else Color.WHITE
-	else:
-		_sprite.modulate = Color.WHITE
+	elif _sprite != null:
+		_sprite.modulate = Color(1.0, 0.75, 1.0) if elite else Color.WHITE
 
-	# 撞击判定（移动后重算，先于死亡清理）
-	var p: Node2D = get_tree().get_first_node_in_group("player")
-	if p != null:
-		var d2: Vector2 = p.global_position - global_position
-		var r_sum: float = get_radius() + (p.get_radius() if p.has_method("get_radius") else 13.0)
-		if d2.length() < r_sum:
-			GameState.damage_core(dmg)
-			queue_free()
+	# 近战接触伤害（远程单位不自爆）
+	if not ranged:
+		var p: Node2D = get_tree().get_first_node_in_group("player")
+		if p != null:
+			var d2: Vector2 = p.global_position - global_position
+			var r_sum: float = get_radius() + (p.get_radius() if p.has_method("get_radius") else 13.0)
+			if d2.length() < r_sum:
+				if p.has_method("take_hit"):
+					p.take_hit(dmg)
+				queue_free()
+
+
+func speed_value() -> float:
+	var st: Dictionary = EnemyDB.stats(kind, GameState.biome_index, elite)
+	return float(st["speed"])
+
+
+func _shoot(dir: Vector2) -> void:
+	var b: Node = load("res://scripts/entities/EnemyBullet.gd").new()
+	get_parent().add_child(b)
+	b.global_position = global_position + dir * (radius + 8.0)
+	b.setup(dir, dmg, _bullet_speed)
+	EventBus.enemy_shot.emit(b.global_position, dir)
 
 
 func get_radius() -> float:
@@ -106,5 +133,10 @@ func take_damage(v: int) -> void:
 
 func _die() -> void:
 	GameState.add_kill()
+	if elite:
+		GameState.add_cells(3 + randi() % 3)
+		GameState.add_gold(8 + randi() % 8)
+	else:
+		GameState.add_gold(1 + randi() % 3)
 	EventBus.enemy_killed.emit(global_position)
 	queue_free()
